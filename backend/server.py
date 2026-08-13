@@ -1,4 +1,5 @@
-from dotenv import load_dotenv
+
+    from dotenv import load_dotenv
 from pathlib import Path
 import os
 
@@ -6,14 +7,13 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, UploadFile, File, Form
-from fastapi.responses import Response
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import logging
 import uuid
 import jwt
 import bcrypt
-import requests
+import vercel_blob
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
@@ -29,43 +29,19 @@ api_router = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tchak")
 
-# ---------------- Storage ----------------
-STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
-STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+# ---------------- Storage (Vercel Blob) ----------------
+# Requires BLOB_READ_WRITE_TOKEN env var (created automatically when you add a
+# Blob store to your Vercel project). Vercel Functions cap request bodies at
+# 4.5MB, so this only works for photos / short clips under that size.
 APP_NAME = "tchak"
-storage_key = None
 
-def init_storage(force: bool = False):
-    global storage_key
-    if storage_key and not force:
-        return storage_key
-    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
-    resp.raise_for_status()
-    storage_key = resp.json()["storage_key"]
-    return storage_key
-
-def put_object(path: str, data: bytes, content_type: str) -> dict:
-    key = init_storage()
-    resp = requests.put(f"{STORAGE_URL}/objects/{path}",
-                        headers={"X-Storage-Key": key, "Content-Type": content_type},
-                        data=data, timeout=120)
-    if resp.status_code == 404:
-        key = init_storage(force=True)
-        resp = requests.put(f"{STORAGE_URL}/objects/{path}",
-                            headers={"X-Storage-Key": key, "Content-Type": content_type},
-                            data=data, timeout=120)
-    resp.raise_for_status()
-    return resp.json()
-
-def get_object(path: str):
-    key = init_storage()
-    resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
-    if resp.status_code == 404:
-        key = init_storage(force=True)
-        resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+def upload_media(path: str, data: bytes, content_type: str) -> str:
+    result = vercel_blob.put(path, data, {
+        "contentType": content_type,
+        "addRandomSuffix": "false",
+        "access": "public",
+    })
+    return result["url"]
 
 # ---------------- Auth helpers ----------------
 JWT_ALGORITHM = "HS256"
@@ -302,18 +278,14 @@ async def create_participation(
     fid = str(uuid.uuid4())
     path = f"{APP_NAME}/uploads/{user['id']}/{fid}.{ext}"
     data = await file.read()
-    result = put_object(path, data, file.content_type or "application/octet-stream")
-    await db.files.insert_one({
-        "id": fid, "storage_path": result["path"], "content_type": file.content_type,
-        "is_deleted": False, "created_at": datetime.now(timezone.utc).isoformat(),
-    })
+    media_url = upload_media(path, data, file.content_type or "application/octet-stream")
     now = datetime.now(timezone.utc)
     pid = str(uuid.uuid4())
     doc = {
         "id": pid, "challenge_id": challenge_id, "challenge_title": ch["title"],
         "category": ch["category"], "user_id": user["id"], "username": user["username"],
         "name": user["name"], "avatar": user.get("avatar"), "location": user.get("location"),
-        "caption": caption, "media_url": f"/api/media/{fid}", "media_type": "video" if is_video else "image",
+        "caption": caption, "media_url": media_url, "media_type": "video" if is_video else "image",
         "votes": 0, "created_at": now.isoformat(), "created_at_ts": now.timestamp(),
     }
     await db.participations.insert_one(doc)
@@ -353,19 +325,6 @@ async def get_profile(username: str, user: dict = Depends(get_optional_user)):
         await enrich_participation(p, user)
     return {"user": public_user(u), "participations": parts}
 
-# ---------------- Media ----------------
-@api_router.get("/media/{file_id}")
-async def media(file_id: str):
-    record = await db.files.find_one({"id": file_id, "is_deleted": False})
-    if not record:
-        raise HTTPException(status_code=404, detail="File not found")
-    data, ct = get_object(record["storage_path"])
-    return Response(
-        content=data,
-        media_type=record.get("content_type") or ct,
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
-    )
-
 @api_router.get("/")
 async def root():
     return {"app": "TCHAK", "status": "ok"}
@@ -398,4 +357,3 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     client.close()
-
