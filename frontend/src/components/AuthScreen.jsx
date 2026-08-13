@@ -123,8 +123,7 @@ export function AuthScreen() {
           )}
 
           <button
-            type="button"
-            onClick={submit}
+            type="submit"
             disabled={busy}
             data-testid="auth-submit"
             className="h-13 w-full rounded-2xl bg-[#FFE800] py-3.5 font-display text-base font-black text-black transition-transform duration-200 active:scale-95 hover:shadow-[0_0_28px_rgba(255,232,0,0.45)] disabled:opacity-60"
