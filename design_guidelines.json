@@ -1,0 +1,128 @@
+{
+  "project_name": "TCHAK",
+  "theme": "dark",
+  "typography": {
+    "headings": "Outfit, sans-serif",
+    "body": "Plus Jakarta Sans, sans-serif",
+    "rules": "Never use Inter for headings. Use tight tracking (tracking-tighter) and heavy weight (font-black) for titles. Keep body highly legible."
+  },
+  "colors": {
+    "background": "#050505",
+    "surface": "#121214",
+    "primary": "#FFE800",
+    "primary_text": "#000000",
+    "accent_coral": "#FF4D4D",
+    "accent_cyan": "#00E5FF",
+    "text_main": "#FAFAFA",
+    "text_muted": "#A1A1AA",
+    "border": "#27272A"
+  },
+  "visual_enhancers": {
+    "glassmorphism": "Use backdrop-blur-xl bg-zinc-950/80 border-t border-zinc-800/50 for floating headers and bottom nav.",
+    "buttons": "Thick, rounded-xl or full pill shape. Primary button MUST be #FFE800 with black text. Add active:scale-95 transition.",
+    "cards": "Cardless feed design (edge-to-edge images/video). For UI elements, use bg-zinc-900 with 1px border-zinc-800.",
+    "marquee": "Use react-fast-marquee for the 'Sa k ap fè bri 🔥' (Trending) hashtag section to give it an energetic, kinetic feel.",
+    "overlay": "Always use gradient overlays (bg-gradient-to-t from-black/90 via-black/40 to-transparent) on feed images so white text is 100% legible."
+  },
+  "layouts": {
+    "global": "Mobile-first social app constraint. If on desktop, constrain the main app view to max-w-md mx-auto with a phone-like aspect ratio (min-h-screen) and dark background.",
+    "feed": "Edge-to-edge media using vertical snap scrolling (snap-y snap-mandatory) typical of TikTok/Reels.",
+    "navigation": "Fixed bottom navigation bar for mobile app feel. Never use a hamburger menu. Display Home, Discover, Upload, Leaderboard, Profile icons.",
+    "grids": "Use tight bento grids (gap-2 or gap-4) for 'Top 10 Haiti' and category browsers."
+  },
+  "motion": {
+    "transitions": "Use specific transforms only. E.g., transition-transform duration-200 ease-out active:scale-95 for buttons.",
+    "feed_scroll": "Smooth snap scrolling for the main feed.",
+    "hover": "Hover states must lighten the background slightly. E.g., hover:bg-zinc-800."
+  },
+  "components": {
+    "files": "CRITICAL: All components must be written in .js or .jsx, NOT .tsx. Provide the guideline for .js files.",
+    "buttons": "Shadcn Button, override styles to match Primary (#FFE800) and Secondary (zinc-800).",
+    "tabs": "Shadcn Tabs for switching between 'Jodi a' (Today) and 'Sa k ap fè bri' (Trending).",
+    "dialog": "Shadcn Dialog for the Participation/Upload flow and Auth flow.",
+    "scroll_area": "Shadcn ScrollArea for Leaderboard lists."
+  },
+  "content_guidelines": {
+    "language": "Haitian Creole primary. Examples: 'Antre nan Challenge 🔥', 'Vote pou li ❤️', 'Top 10 Haiti'.",
+    "tone": "Young, energetic, fun, competitive.",
+    "demo_names": ["Kendy", "Woodline", "Steevenson", "Fabiola", "Djeff", "Schnaida"],
+    "demo_locations": ["Port-au-Prince", "Cap-Haïtien", "Jacmel", "Delmas", "Pétion-Ville"]
+  },
+  "accessibility": {
+    "contrast": "Ensure text over images has a strong gradient overlay. Use APCA guidelines for high contrast.",
+    "focus": "Use focus:ring-2 focus:ring-[#FFE800] focus:outline-none.",
+    "testing": "All interactive and key informational elements MUST include a data-testid attribute in kebab-case."
+  },
+  "image_urls": {
+    "feed_participations": [
+      {
+        "url": "https://images.pexels.com/photos/2932418/pexels-photo-2932418.jpeg",
+        "category": "feed_post",
+        "description": "Group of youths with boomboxes, perfect for dance/music challenge."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1583244532610-2a234e7c3eca",
+        "category": "feed_post",
+        "description": "Woman singing on stage, perfect for talent/music challenge."
+      },
+      {
+        "url": "https://images.pexels.com/photos/5956950/pexels-photo-5956950.jpeg",
+        "category": "feed_post",
+        "description": "Friends partying, good for trending challenge."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1545128485-c400e7702796",
+        "category": "feed_post",
+        "description": "Neon party room, energetic vibe."
+      }
+    ],
+    "user_avatars": [
+      {
+        "url": "https://images.unsplash.com/photo-1590862133252-c6991ebadef9",
+        "category": "avatar",
+        "description": "Cool streetwear guy profile."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1536896407451-6e3dd976edd1",
+        "category": "avatar",
+        "description": "Girl taking selfie outdoors profile."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1623193904313-4372c49db04c",
+        "category": "avatar",
+        "description": "Man in black hoodie and sunglasses."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1616268164880-673b3ba611bb",
+        "category": "avatar",
+        "description": "Woman in floral dress."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Install Google Fonts 'Outfit' and 'Plus Jakarta Sans'.",
+    "Build the application using standard JavaScript (.js/.jsx), NOT TypeScript (.tsx).",
+    "Ensure standard HTML input date/select are NOT used; use Shadcn.",
+    "Always add data-testid attributes to interactive elements (e.g., data-testid='vote-button').",
+    "App must look like a native mobile app but running in the browser (mobile web app).",
+    "Implement a fixed bottom navigation bar (Home, Categories, Upload, Leaderboard, Profile).",
+    "For the feed, use full-width cards or edge-to-edge images with heavy dark bottom gradients so white text pops.",
+    "DO NOT use a fully transparent header; if header is floating, use glassmorphism with border.",
+    "DO NOT add .App { text-align: center; }.",
+    "Use lucide-react for icons."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition. Eg: transition: all. This results in breaking transforms.",
+    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "Use sonner for toasts, located in /app/src/components/ui/sonner.jsx."
+  ]
+}
