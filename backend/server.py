@@ -96,7 +96,7 @@ async def get_current_user(request: Request) -> dict:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
         user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
         if not user:
-            raise HTTPException(status_code=401, detail="Itilizatè pa jwenn")
+            raise HTTPException(status_code=401, detail="ItilizatÃ¨ pa jwenn")
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Sesyon an fini")
@@ -149,7 +149,7 @@ async def register(body: RegisterIn):
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=400, detail="Imel sa a deja itilize")
     if await db.users.find_one({"username": body.username.lower()}):
-        raise HTTPException(status_code=400, detail="Non itilizatè sa a deja pran")
+        raise HTTPException(status_code=400, detail="Non itilizatÃ¨ sa a deja pran")
     uid = str(uuid.uuid4())
     doc = {
         "id": uid, "email": email, "password_hash": hash_password(body.password),
@@ -167,7 +167,7 @@ async def login(body: LoginIn):
     email = body.email.lower()
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Imel oswa modpas pa kòrèk")
+        raise HTTPException(status_code=401, detail="Imel oswa modpas pa kÃ²rÃ¨k")
     token = create_access_token(user["id"], email)
     return {"token": token, "user": public_user(user, True)}
 
@@ -177,17 +177,17 @@ async def me(user: dict = Depends(get_current_user)):
 
 # ---------------- Categories ----------------
 CATEGORIES = [
-    {"key": "culture", "emoji": "🇭🇹", "ht": "Kilti Ayiti", "fr": "Culture Haïti", "en": "Haiti Culture"},
-    {"key": "music", "emoji": "🎵", "ht": "Mizik", "fr": "Musique", "en": "Music"},
-    {"key": "fashion", "emoji": "👕", "ht": "Mòd", "fr": "Mode", "en": "Fashion"},
-    {"key": "humor", "emoji": "😂", "ht": "Blag", "fr": "Humour", "en": "Humor"},
-    {"key": "sports", "emoji": "⚽", "ht": "Espò", "fr": "Sport", "en": "Sports"},
-    {"key": "gaming", "emoji": "🎮", "ht": "Gaming", "fr": "Gaming", "en": "Gaming"},
-    {"key": "dance", "emoji": "💃", "ht": "Dans", "fr": "Danse", "en": "Dance"},
-    {"key": "talent", "emoji": "🎤", "ht": "Talan", "fr": "Talent", "en": "Talent"},
-    {"key": "knowledge", "emoji": "📚", "ht": "Konesans", "fr": "Savoir", "en": "Knowledge"},
-    {"key": "opinions", "emoji": "❤️", "ht": "Opinyon", "fr": "Opinions", "en": "Opinions"},
-    {"key": "trending", "emoji": "🔥", "ht": "K ap fè bri", "fr": "Tendances", "en": "Trending"},
+    {"key": "culture", "emoji": "ð­ð¹", "ht": "Kilti Ayiti", "fr": "Culture HaÃ¯ti", "en": "Haiti Culture"},
+    {"key": "music", "emoji": "ðµ", "ht": "Mizik", "fr": "Musique", "en": "Music"},
+    {"key": "fashion", "emoji": "ð", "ht": "MÃ²d", "fr": "Mode", "en": "Fashion"},
+    {"key": "humor", "emoji": "ð", "ht": "Blag", "fr": "Humour", "en": "Humor"},
+    {"key": "sports", "emoji": "â½", "ht": "EspÃ²", "fr": "Sport", "en": "Sports"},
+    {"key": "gaming", "emoji": "ð®", "ht": "Gaming", "fr": "Gaming", "en": "Gaming"},
+    {"key": "dance", "emoji": "ð", "ht": "Dans", "fr": "Danse", "en": "Dance"},
+    {"key": "talent", "emoji": "ð¤", "ht": "Talan", "fr": "Talent", "en": "Talent"},
+    {"key": "knowledge", "emoji": "ð", "ht": "Konesans", "fr": "Savoir", "en": "Knowledge"},
+    {"key": "opinions", "emoji": "â¤ï¸", "ht": "Opinyon", "fr": "Opinions", "en": "Opinions"},
+    {"key": "trending", "emoji": "ð¥", "ht": "K ap fÃ¨ bri", "fr": "Tendances", "en": "Trending"},
 ]
 
 @api_router.get("/categories")
@@ -195,9 +195,22 @@ async def get_categories():
     return CATEGORIES
 
 # ---------------- Challenges ----------------
-async def enrich_challenge(ch: dict, user):
+async def participation_counts(challenge_ids: List[str]) -> dict:
+    """Single aggregation query instead of one count_documents() per challenge (avoids N+1)."""
+    if not challenge_ids:
+        return {}
+    cursor = db.participations.aggregate([
+        {"$match": {"challenge_id": {"$in": challenge_ids}}},
+        {"$group": {"_id": "$challenge_id", "count": {"$sum": 1}}},
+    ])
+    return {doc["_id"]: doc["count"] async for doc in cursor}
+
+async def enrich_challenge(ch: dict, counts: Optional[dict] = None) -> dict:
     ch.pop("_id", None)
-    ch["participations_count"] = await db.participations.count_documents({"challenge_id": ch["id"]})
+    if counts is not None:
+        ch["participations_count"] = counts.get(ch["id"], 0)
+    else:
+        ch["participations_count"] = await db.participations.count_documents({"challenge_id": ch["id"]})
     return ch
 
 @api_router.get("/challenges")
@@ -207,8 +220,9 @@ async def list_challenges(category: Optional[str] = None, sort: str = "trending"
     if category and category != "all":
         q["category"] = category
     challenges = await db.challenges.find(q, {"_id": 0}).to_list(200)
+    counts = await participation_counts([c["id"] for c in challenges])
     for ch in challenges:
-        ch["participations_count"] = await db.participations.count_documents({"challenge_id": ch["id"]})
+        await enrich_challenge(ch, counts)
     if sort == "today":
         challenges.sort(key=lambda c: (not c.get("is_today", False), -c.get("trending_score", 0)))
     else:
@@ -221,7 +235,7 @@ async def featured_challenge(user: dict = Depends(get_optional_user)):
     if not ch:
         ch = await db.challenges.find_one({}, {"_id": 0})
     if ch:
-        ch["participations_count"] = await db.participations.count_documents({"challenge_id": ch["id"]})
+        await enrich_challenge(ch)
     return ch
 
 @api_router.get("/challenges/{challenge_id}")
@@ -229,7 +243,7 @@ async def get_challenge(challenge_id: str, user: dict = Depends(get_optional_use
     ch = await db.challenges.find_one({"id": challenge_id}, {"_id": 0})
     if not ch:
         raise HTTPException(status_code=404, detail="Challenge pa jwenn")
-    ch["participations_count"] = await db.participations.count_documents({"challenge_id": challenge_id})
+    await enrich_challenge(ch)
     return ch
 
 # ---------------- Participations ----------------
@@ -332,7 +346,7 @@ async def toggle_vote(body: VoteIn, user: dict = Depends(get_current_user)):
 async def get_profile(username: str, user: dict = Depends(get_optional_user)):
     u = await db.users.find_one({"username": username.lower()}, {"_id": 0, "password_hash": 0})
     if not u:
-        raise HTTPException(status_code=404, detail="Itilizatè pa jwenn")
+        raise HTTPException(status_code=404, detail="ItilizatÃ¨ pa jwenn")
     parts = await db.participations.find({"user_id": u["id"]}, {"_id": 0}).to_list(500)
     parts.sort(key=lambda p: -p.get("votes", 0))
     for p in parts:
@@ -346,7 +360,11 @@ async def media(file_id: str):
     if not record:
         raise HTTPException(status_code=404, detail="File not found")
     data, ct = get_object(record["storage_path"])
-    return Response(content=data, media_type=record.get("content_type") or ct)
+    return Response(
+        content=data,
+        media_type=record.get("content_type") or ct,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 @api_router.get("/")
 async def root():
@@ -354,10 +372,13 @@ async def root():
 
 app.include_router(api_router)
 
+_cors_origins = [o.strip() for o in os.environ.get('CORS_ORIGINS', '*').split(',') if o.strip()]
+# Auth uses a Bearer token (localStorage), not cookies, so credentials aren't needed.
+# Browsers also reject the combination of "*" origins with allow_credentials=True.
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_credentials=False,
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -377,3 +398,4 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     client.close()
+
