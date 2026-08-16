@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -27,6 +28,7 @@ export default function UploadPage() {
       setChallenges(r.data);
       if (!challengeId && r.data.length) setChallengeId(r.data[0].id);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onFile = (e) => {
