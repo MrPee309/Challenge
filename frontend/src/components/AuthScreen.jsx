@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useLang } from "@/context/LanguageContext";
@@ -7,8 +8,34 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 const LOCATIONS = [
-  "Port-au-Prince", "Cap-Haïtien", "Gonaïves", "Jacmel",
-  "Les Cayes", "Pétion-Ville", "Delmas", "Carrefour",
+  "Abricots", "Anse-à-Foleur", "Anse-à-Galets", "Anse-à-Pitres", "Anse-à-Veau",
+  "Anse-d'Hainault", "Anse-Rouge", "Aquin", "Arcahaie", "Arniquet",
+  "Bahon", "Bainet", "Baie-de-Henne", "Baradères", "Bas-Limbé",
+  "Bassin-Bleu", "Beaumont", "Belladère", "Belle-Anse", "Bombardopolis",
+  "Borgne", "Boucan-Carré", "Cabaret", "Camp-Perrin", "Cap-Haïtien",
+  "Capotille", "Caracol", "Carrefour", "Cavaillon", "Cayes-Jacmel",
+  "Cerca-Carvajal", "Cerca-la-Source", "Chambellan", "Chansolme", "Chantal",
+  "Chardonnières", "Cité Soleil", "Corail", "Cornillon", "Côtes-de-Fer",
+  "Croix-des-Bouquets", "Dame-Marie", "Delmas", "Desdunes", "Dessalines",
+  "Dondon", "Ennery", "Fermathe", "Ferrier", "Fonds-des-Nègres",
+  "Fonds-Verrettes", "Fort-Liberté", "Ganthier", "Gonaïves", "Grand-Goâve",
+  "Grande-Rivière-du-Nord", "Grande-Saline", "Gressier", "Gros-Morne",
+  "Hinche", "Île-à-Vache", "Jacmel", "Jean-Rabel", "Jérémie", "Kenscoff",
+  "L'Asile", "L'Estère", "La Chapelle", "La Tortue", "La Vallée",
+  "Lascahobas", "Léogâne", "Les Anglais", "Les Cayes", "Les Irois",
+  "Limbé", "Limonade", "Maïssade", "Maniche", "Marigot", "Marmelade",
+  "Miragoâne", "Milot", "Mirebalais", "Mombin-Crochu", "Môle-Saint-Nicolas",
+  "Mont-Organisé", "Moron", "Ouanaminthe", "Paillant", "Perches",
+  "Pestel", "Petit-Goâve", "Petit-Trou-de-Nippes", "Petite-Rivière-de-l'Artibonite",
+  "Petite-Rivière-de-Nippes", "Pétion-Ville", "Pignon", "Pilate",
+  "Plaine-du-Nord", "Plaisance", "Pointe-à-Raquette", "Port-à-Piment",
+  "Port-au-Prince", "Port-de-Paix", "Port-Margot", "Port-Salut",
+  "Ranquitte", "Roche-à-Bateau", "Roseaux", "Saint-Jean-du-Sud",
+  "Saint-Louis-du-Sud", "Saint-Marc", "Saint-Michel-de-l'Attalaye",
+  "Saint-Raphaël", "Sainte-Suzanne", "Saut-d'Eau", "Savanette", "Tabarre",
+  "Terre-Neuve", "Terrier-Rouge", "Thiotte", "Thomassique", "Thomazeau",
+  "Thomonde", "Torbeck", "Trou-du-Nord", "Vallières", "Verrettes",
+  "Vieux-Bourg-d'Aquin",
 ];
 
 export function AuthScreen() {
