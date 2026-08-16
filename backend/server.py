@@ -1,4 +1,3 @@
-
 from dotenv import load_dotenv
 from pathlib import Path
 import os
@@ -331,13 +330,12 @@ async def root():
 
 app.include_router(api_router)
 
-_cors_origins = [o.strip() for o in os.environ.get('CORS_ORIGINS', '*').split(',') if o.strip()]
-# Auth uses a Bearer token (localStorage), not cookies, so credentials aren't needed.
-# Browsers also reject the combination of "*" origins with allow_credentials=True.
+# CORS: fully open for now (Bearer-token auth, no cookies, so this is safe).
+# Hardcoded rather than read from CORS_ORIGINS to eliminate env-var issues while debugging.
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=False,
-    allow_origins=_cors_origins,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -352,3 +350,4 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     client.close()
+
