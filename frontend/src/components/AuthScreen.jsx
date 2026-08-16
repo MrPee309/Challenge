@@ -35,7 +35,10 @@ export function AuthScreen() {
       }
       toast.success("🔥");
     } catch (err) {
-      setError(formatApiError(err.response?.data?.detail) || err.message);
+      const msg = err.response
+        ? formatApiError(err.response?.data?.detail)
+        : (err.message || "Yon erè rive. Eseye ankò.");
+      setError(msg);
     } finally {
       setBusy(false);
     }
