@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useLang } from "@/context/LanguageContext";
 import { LangSwitcher } from "@/components/AppHeader";
@@ -38,7 +38,7 @@ const LOCATIONS = [
 ];
 
 export function AuthScreen() {
-  const { login, register } = useAuth();
+  const { login, loginWithGoogle, register } = useAuth();
   const { t } = useLang();
   const [mode, setMode] = useState("register");
   const [form, setForm] = useState({
@@ -47,6 +47,47 @@ export function AuthScreen() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [justRegistered, setJustRegistered] = useState(false);
+  const googleBtnRef = useRef(null);
+
+  useEffect(() => {
+    const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+    if (!clientId || justRegistered) return;
+
+    const initGoogle = () => {
+      if (!window.google || !googleBtnRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (response) => {
+          setError("");
+          setBusy(true);
+          try {
+            await loginWithGoogle(response.credential);
+            toast.success("🔥");
+          } catch (err) {
+            const msg = err.response
+              ? formatApiError(err.response?.data?.detail)
+              : (err.message || "Yon erè rive. Eseye ankò.");
+            setError(msg);
+          } finally {
+            setBusy(false);
+          }
+        },
+      });
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: "filled_black", size: "large", shape: "pill", width: 320,
+      });
+    };
+
+    if (window.google) {
+      initGoogle();
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.onload = initGoogle;
+      document.body.appendChild(script);
+    }
+  }, [justRegistered, loginWithGoogle]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -168,8 +209,8 @@ export function AuthScreen() {
           )}
           <Input
             data-testid="auth-email"
-            type="email"
-            placeholder={t("email")}
+            type={mode === "login" ? "text" : "email"}
+            placeholder={mode === "login" ? "Imel oswa non itilizatè" : t("email")}
             value={form.email}
             onChange={set("email")}
             required
@@ -200,6 +241,13 @@ export function AuthScreen() {
             {busy ? "..." : mode === "login" ? t("login") : t("register")}
           </button>
         </form>
+
+        <div className="mt-4 flex items-center gap-3 text-xs text-zinc-600">
+          <div className="h-px flex-1 bg-zinc-800" />
+          oswa
+          <div className="h-px flex-1 bg-zinc-800" />
+        </div>
+        <div ref={googleBtnRef} className="mt-4 flex justify-center" />
 
         <button
           data-testid="auth-toggle"
