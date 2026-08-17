@@ -33,9 +33,9 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (payload) => {
     const res = await api.post("/auth/register", payload);
-    handleAuth(res.data);
-    return res.data.user;
-  }, [handleAuth]);
+    // No auto-login: backend now requires email confirmation before login.
+    return res.data;
+  }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem("tchak_token");
