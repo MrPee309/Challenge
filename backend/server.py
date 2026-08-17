@@ -5,14 +5,16 @@ import os
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, UploadFile, File, Form
-from starlette.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, UploadFile, File, Form, Response
+from fastapi.responses import RedirectResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 import logging
 import uuid
+import secrets
 import jwt
 import bcrypt
 import vercel_blob
+import requests
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
@@ -41,6 +43,43 @@ def upload_media(path: str, data: bytes, content_type: str) -> str:
         "access": "public",
     })
     return result["url"]
+
+# ---------------- Email (SendGrid) ----------------
+def send_verification_email(to_email: str, name: str, token: str):
+    api_key = os.environ.get("SENDGRID_API_KEY")
+    from_email = os.environ.get("SENDGRID_FROM_EMAIL")
+    backend_url = os.environ.get("BACKEND_URL", "").rstrip("/")
+    if not api_key or not from_email or not backend_url:
+        logger.error("SendGrid pa konfigire (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL / BACKEND_URL manke) — imel pa voye.")
+        return
+    verify_link = f"{backend_url}/api/auth/verify?token={token}"
+    html = f"""
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+            <h2 style="color:#111">Byenvini nan TCHAK, {name}! 🔥</h2>
+            <p>Klike sou bouton anba a pou konfime imel ou epi aktive kont ou.</p>
+            <p style="text-align:center;margin:24px 0">
+                <a href="{verify_link}" style="background:#FFE800;color:#000;padding:12px 24px;
+                   border-radius:12px;text-decoration:none;font-weight:bold">Konfime imel mwen</a>
+            </p>
+            <p style="color:#666;font-size:13px">Si bouton an pa mache, kopye lyen sa a: {verify_link}</p>
+        </div>
+    """
+    try:
+        resp = requests.post(
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "personalizations": [{"to": [{"email": to_email}]}],
+                "from": {"email": from_email, "name": "TCHAK"},
+                "subject": "Konfime imel ou sou TCHAK 🔥",
+                "content": [{"type": "text/html", "value": html}],
+            },
+            timeout=15,
+        )
+        if resp.status_code >= 300:
+            logger.error(f"SendGrid erè {resp.status_code}: {resp.text}")
+    except Exception as e:
+        logger.error(f"Erè pandan voye imel: {e}")
 
 # ---------------- Auth helpers ----------------
 JWT_ALGORITHM = "HS256"
@@ -126,16 +165,27 @@ async def register(body: RegisterIn):
     if await db.users.find_one({"username": body.username.lower()}):
         raise HTTPException(status_code=400, detail="Non itilizatè sa a deja pran")
     uid = str(uuid.uuid4())
+    verify_token = secrets.token_urlsafe(32)
     doc = {
         "id": uid, "email": email, "password_hash": hash_password(body.password),
         "name": body.name, "username": body.username.lower(), "location": body.location,
         "avatar": DEFAULT_AVATARS[len(email) % len(DEFAULT_AVATARS)], "bio": "",
         "wins": 0, "total_votes": 0, "participations_count": 0,
+        "email_verified": False, "verify_token": verify_token,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(doc)
-    token = create_access_token(uid, email)
-    return {"token": token, "user": public_user(doc, True)}
+    send_verification_email(email, body.name, verify_token)
+    return {"message": "Konte kreye! Tcheke imel ou pou konfime kont ou anvan w ka konekte.", "email_sent": True}
+
+@api_router.get("/auth/verify")
+async def verify_email(token: str):
+    user = await db.users.find_one({"verify_token": token})
+    frontend_url = os.environ.get("FRONTEND_URL", "").rstrip("/")
+    if not user:
+        return RedirectResponse(f"{frontend_url}/?verify=invalid" if frontend_url else "/?verify=invalid")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"email_verified": True}, "$unset": {"verify_token": ""}})
+    return RedirectResponse(f"{frontend_url}/?verify=ok" if frontend_url else "/?verify=ok")
 
 @api_router.post("/auth/login")
 async def login(body: LoginIn):
@@ -143,6 +193,8 @@ async def login(body: LoginIn):
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Imel oswa modpas pa kòrèk")
+    if not user.get("email_verified", False):
+        raise HTTPException(status_code=403, detail="Fòk ou konfime imel ou anvan. Tcheke bwat imel ou.")
     token = create_access_token(user["id"], email)
     return {"token": token, "user": public_user(user, True)}
 
@@ -330,15 +382,24 @@ async def root():
 
 app.include_router(api_router)
 
-# CORS: fully open for now (Bearer-token auth, no cookies, so this is safe).
-# Hardcoded rather than read from CORS_ORIGINS to eliminate env-var issues while debugging.
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=False,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS: hand-rolled instead of Starlette's CORSMiddleware — its stricter
+# preflight validation was returning 400 on Vercel for reasons that didn't
+# reproduce locally. This version unconditionally allows every origin/method/
+# header, which is safe here since auth uses a Bearer token, not cookies.
+@app.middleware("http")
+async def cors_handler(request: Request, call_next):
+    origin = request.headers.get("origin", "*")
+    if request.method == "OPTIONS":
+        response = Response(status_code=200)
+    else:
+        response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS,PATCH"
+    response.headers["Access-Control-Allow-Headers"] = request.headers.get(
+        "access-control-request-headers", "Content-Type, Authorization"
+    )
+    response.headers["Vary"] = "Origin"
+    return response
 
 @app.on_event("startup")
 async def startup():
@@ -350,4 +411,3 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     client.close()
-
