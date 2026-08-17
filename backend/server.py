@@ -77,7 +77,7 @@ def send_verification_email(to_email: str, name: str, token: str):
             timeout=15,
         )
         if resp.status_code >= 300:
-            logger.error(f"SendGrid erè {resp.status_code}: {resp.text}")
+            logger.error(f"Brevo erè {resp.status_code}: {resp.text}")
     except Exception as e:
         logger.error(f"Erè pandan voye imel: {e}")
 
@@ -132,8 +132,11 @@ class RegisterIn(BaseModel):
     location: str = "Port-au-Prince"
 
 class LoginIn(BaseModel):
-    email: EmailStr
+    identifier: str  # email OR username
     password: str
+
+class GoogleAuthIn(BaseModel):
+    credential: str  # Google ID token (JWT) from Google Identity Services
 
 class VoteIn(BaseModel):
     participation_id: str
@@ -189,12 +192,62 @@ async def verify_email(token: str):
 
 @api_router.post("/auth/login")
 async def login(body: LoginIn):
-    email = body.email.lower()
-    user = await db.users.find_one({"email": email})
-    if not user or not verify_password(body.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Imel oswa modpas pa kòrèk")
+    identifier = body.identifier.strip().lower()
+    user = await db.users.find_one({"$or": [{"email": identifier}, {"username": identifier}]})
+    if not user or not user.get("password_hash") or not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Imel/non itilizatè oswa modpas pa kòrèk")
     if not user.get("email_verified", False):
         raise HTTPException(status_code=403, detail="Fòk ou konfime imel ou anvan. Tcheke bwat imel ou.")
+    token = create_access_token(user["id"], user["email"])
+    return {"token": token, "user": public_user(user, True)}
+
+@api_router.post("/auth/google")
+async def google_auth(body: GoogleAuthIn):
+    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    if not client_id:
+        raise HTTPException(status_code=500, detail="Google Sign-In pa konfigire sou sèvè a")
+    try:
+        resp = requests.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": body.credential},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token Google pa valab")
+
+    if payload.get("aud") != client_id:
+        raise HTTPException(status_code=401, detail="Token Google pa valab pou app sa a")
+    if payload.get("email_verified") not in ("true", True):
+        raise HTTPException(status_code=401, detail="Imel Google ou pa verifye")
+
+    email = payload["email"].lower()
+    name = payload.get("name") or email.split("@")[0]
+    user = await db.users.find_one({"email": email})
+
+    if not user:
+        base_username = "".join(c for c in email.split("@")[0].lower() if c.isalnum()) or "itilizatè"
+        username = base_username
+        suffix = 0
+        while await db.users.find_one({"username": username}):
+            suffix += 1
+            username = f"{base_username}{suffix}"
+        uid = str(uuid.uuid4())
+        doc = {
+            "id": uid, "email": email, "password_hash": None,
+            "name": name, "username": username, "location": "Port-au-Prince",
+            "avatar": payload.get("picture") or DEFAULT_AVATARS[len(email) % len(DEFAULT_AVATARS)], "bio": "",
+            "wins": 0, "total_votes": 0, "participations_count": 0,
+            "email_verified": True, "auth_provider": "google",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.users.insert_one(doc)
+        user = doc
+    elif not user.get("email_verified"):
+        await db.users.update_one({"id": user["id"]}, {"$set": {"email_verified": True}})
+        user["email_verified"] = True
+
     token = create_access_token(user["id"], email)
     return {"token": token, "user": public_user(user, True)}
 
