@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useLang } from "@/context/LanguageContext";
 import { LangSwitcher } from "@/components/AppHeader";
@@ -47,6 +46,23 @@ export function AuthScreen() {
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [justRegistered, setJustRegistered] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get("verify");
+    if (v === "ok") {
+      toast.success("Imel konfime! Ou ka konekte kounye a. 🔥");
+      setMode("login");
+    } else if (v === "invalid") {
+      toast.error("Lyen konfimasyon an pa valab oswa li deja itilize.");
+    }
+    if (v) {
+      params.delete("verify");
+      const rest = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (rest ? `?${rest}` : ""));
+    }
+  }, []);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -57,10 +73,11 @@ export function AuthScreen() {
     try {
       if (mode === "login") {
         await login(form.email, form.password);
+        toast.success("🔥");
       } else {
         await register(form);
+        setJustRegistered(true);
       }
-      toast.success("🔥");
     } catch (err) {
       const msg = err.response
         ? formatApiError(err.response?.data?.detail)
@@ -70,6 +87,28 @@ export function AuthScreen() {
       setBusy(false);
     }
   };
+
+  if (justRegistered) {
+    return (
+      <div className="grain relative min-h-screen w-full max-w-md mx-auto overflow-hidden bg-[#050505]">
+        <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[#FFE800] opacity-20 blur-[90px]" />
+        <div className="relative flex min-h-screen flex-col items-center justify-center px-6 py-8 text-center">
+          <span className="text-6xl">📬</span>
+          <h1 className="mt-5 font-display text-2xl font-black text-white">Tcheke imel ou!</h1>
+          <p className="mt-3 text-sm text-zinc-400">
+            Nou voye yon lyen konfimasyon nan <span className="font-bold text-white">{form.email}</span>.
+            Klike sou lyen an pou aktive kont ou anvan w ka konekte.
+          </p>
+          <button
+            onClick={() => { setJustRegistered(false); setMode("login"); setError(""); }}
+            className="mt-8 h-12 w-full rounded-2xl bg-[#FFE800] font-display text-base font-black text-black"
+          >
+            Ale nan paj konekte
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grain relative min-h-screen w-full max-w-md mx-auto overflow-hidden bg-[#050505]">
