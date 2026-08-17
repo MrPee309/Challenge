@@ -44,13 +44,13 @@ def upload_media(path: str, data: bytes, content_type: str) -> str:
     })
     return result["url"]
 
-# ---------------- Email (SendGrid) ----------------
+# ---------------- Email (Brevo) ----------------
 def send_verification_email(to_email: str, name: str, token: str):
-    api_key = os.environ.get("SENDGRID_API_KEY")
-    from_email = os.environ.get("SENDGRID_FROM_EMAIL")
+    api_key = os.environ.get("BREVO_API_KEY")
+    from_email = os.environ.get("BREVO_FROM_EMAIL")
     backend_url = os.environ.get("BACKEND_URL", "").rstrip("/")
     if not api_key or not from_email or not backend_url:
-        logger.error("SendGrid pa konfigire (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL / BACKEND_URL manke) — imel pa voye.")
+        logger.error("Brevo pa konfigire (BREVO_API_KEY / BREVO_FROM_EMAIL / BACKEND_URL manke) — imel pa voye.")
         return
     verify_link = f"{backend_url}/api/auth/verify?token={token}"
     html = f"""
@@ -66,13 +66,13 @@ def send_verification_email(to_email: str, name: str, token: str):
     """
     try:
         resp = requests.post(
-            "https://api.sendgrid.com/v3/mail/send",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            "https://api.brevo.com/v3/smtp/email",
+            headers={"api-key": api_key, "Content-Type": "application/json", "Accept": "application/json"},
             json={
-                "personalizations": [{"to": [{"email": to_email}]}],
-                "from": {"email": from_email, "name": "TCHAK"},
+                "sender": {"name": "TCHAK", "email": from_email},
+                "to": [{"email": to_email, "name": name}],
                 "subject": "Konfime imel ou sou TCHAK 🔥",
-                "content": [{"type": "text/html", "value": html}],
+                "htmlContent": html,
             },
             timeout=15,
         )
